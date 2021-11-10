@@ -4,9 +4,13 @@ const { Rabbitmq } = require("../ultilities");
 async function getCommunity(data, db) {
 
   const { urls = [] } = data.params;
+  const { id: user_id } = data.meta.user;
+  
   if (!urls.length) {
     return { status: 400, message: "Missing params" };
   }
+
+  const responseKey = `${user_id}_${new Date().getTime()}`
 
   const modeWeb = new ModelWeb(db);
 
@@ -23,11 +27,11 @@ async function getCommunity(data, db) {
 
   const rabbitmq = new Rabbitmq();
   rabbitmq.produce({
-    ...data.params,
+    responseKey,
     urls: urls.filter((url) => !notSupporting.some((ns) => url.includes(ns)))
   }, { exchange: "background", queue: "get_community" });
 
-  return { status: 200, data: { notSupporting } }
+  return { status: 200, data: { responseKey, notSupporting, notSupportingUrls: urls.filter((url) => notSupporting.some((ns) => url.includes(ns))) } }
 }
 
 module.exports = getCommunity;
