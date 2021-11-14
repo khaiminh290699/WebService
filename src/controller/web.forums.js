@@ -12,6 +12,9 @@ async function getWebForum(data, db) {
       webs.web_key
     `)
   )
+  .whereRaw(`
+    forums.is_deleted = false
+  `)
   const forums = await modelForum.queryByCondition(query, wheres, page,limit, order);
   return { status: 200, data: { forums } };
 }

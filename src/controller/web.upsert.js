@@ -1,7 +1,7 @@
-const { Model, ModelWeb, ModelAction } = require("../db");
+const { Model, ModelWeb, ModelAction, ModelForum } = require("../db");
 
 async function webUpsert(data, db) {
-  let { id, web_url, web_name, web_key, actions = [] } = data.params;
+  let { id, web_url, web_name, web_key, actions = [], forums = [] } = data.params;
   if (!web_url || !web_key || !web_name || !actions.length) {
     return { status: 400, message: "Missing params" };
   }
@@ -16,6 +16,7 @@ async function webUpsert(data, db) {
     return await model.openTransaction(async (trx) => {
       const modelWeb = new ModelWeb(db, trx);
       const modelAction = new ModelAction(db, trx);
+      const modelForums = new ModelForum(db, trx);
 
       let web = null;
       if (!id) {
@@ -23,6 +24,25 @@ async function webUpsert(data, db) {
       } else {
         web = await modelWeb.findOne({ id })
         web = await modelWeb.updateOne({ ...web, web_name, web_url, web_key });
+      }
+
+      await modelForums.query().update({
+        is_deleted: true
+      })
+      .whereNotIn("id", forums.filter((forum) => forum.id).map((forum) => forum.id))
+      .where({ web_id: web.id });
+
+      if (forums.length) {
+        await modelForums.query().insert(
+          forums.map((forum) => {
+            return {
+              id: forum.id,
+              web_id: web.id,
+              forum_name: forum.forum_name,
+              forum_url: forum.forum_url.charAt(forum.forum_url.length - 1) === "/" ? forum.forum_url : forum.forum_url + "/"
+            }
+          })
+        ).onConflict(["id"]).merge();
       }
 
       await modelAction.query().delete().where({ web_id: web.id });
